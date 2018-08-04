@@ -68,9 +68,7 @@ except ClientError as e:
    if e.response['Error']['Code'] == 'InvalidGroup.Duplicate':
       pass
 
-
 ### create volume ###
-
 response = ec2_client.describe_volumes(
     Filters=[
         {
@@ -120,30 +118,92 @@ if volume_id == "0":
   volume_id = volume.id
 print("ebs volume %s is ready for your instance" % volume_id)
 
-### launch ec2 instance ###
-response = ec2.create_instances(ImageId=image_id,
-                     InstanceType=instance_type,
-                     MinCount=1,
-                     MaxCount=1,
-                     Placement=
-                       {
-     'AvailabilityZone': av_zone
-                       },
-                     SecurityGroups=['web sg'],
-                     KeyName=key_pair_name,
-                     )
-instance_id = response[0].instance_id
-instance = ec2.Instance(instance_id)
-instance.wait_until_running()
-ec2_client.attach_volume(
-    VolumeId=volume_id,
-    InstanceId=instance_id,
-    Device='/dev/xvdl'
+### check if instance is already running ###
+response = ec2_client.describe_instances(
+    Filters=[
+        {
+            'Name': 'tag:Name',
+            'Values': [
+                'web_srv'
+            ]
+        },
+        {
+            'Name': 'instance-type',
+            'Values': [
+                instance_type
+            ]
+        },
+        {
+            'Name': 'instance-state-name',
+            'Values': [
+                'running'
+            ]
+        }
+    ]
 )
+try:
+  instance_id  =  response['Reservations'][0]['Instances'][0]['InstanceId']
+except IndexError:
+  instance_id = "0"
+  pass
+
+if instance_id == "0": ### then instance is absent and it has to be created
+
+  response = ec2.create_instances(ImageId="%s" % image_id,
+                       InstanceType="%s" % instance_type,
+                       MinCount=1, MaxCount=1,
+                       Placement=
+                         {
+                          'AvailabilityZone': 'eu-central-1a'
+                         },
+                       SecurityGroups=['web sg'],
+                       KeyName="%s" % key_pair_name,
+                       )
+  instance_id = response[0].instance_id
+  instance = ec2.Instance(instance_id)
+  instance.wait_until_running()
+  ec2_client.attach_volume(
+      VolumeId="%s" % volume_id,
+      InstanceId="%s" % instance_id,
+      Device='/dev/xvdl'
+  )
+### assign tags to instance ###
+  ec2.create_tags(
+      Resources=[
+        instance_id
+      ],
+      Tags=[
+        {
+          'Key': 'Name',
+          'Value': 'web_srv'
+        }
+      ]
+  )
+  print("%s has been created" % instance_id)
+else:
+  print("Instance web_srv seems is alredy running in your AWS account")
+
+### retrieve dns and public IP from web_srv instanse ###
+
+response = ec2_client.describe_instances(
+    Filters=[
+        {
+            'Name': 'instance-id',
+            'Values': [
+                instance_id
+            ]
+        }
+    ]
+)
+
+dns = response['Reservations'][0]['Instances'][0]['PublicDnsName']
+public_ip = response['Reservations'][0]['Instances'][0]['PublicIpAddress']
+
+
+
 ### get a list of running instances with additional options ###
 for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
    print(instance.id, instance.instance_type, instance.key_name, instance.private_ip_address, instance.public_ip_address)
-#TODO should add the identification of my own instance between the already running ones
 
 ###  connect to , format the disk, mount it and perform git installation and repo clone ###
 wait_for_ssh_to_be_ready('20', '3')
