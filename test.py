@@ -1,19 +1,44 @@
 #!/usr/bin/env python
 import os
 import sys
+import time
 import json
 import boto3
 from botocore.exceptions import ClientError
+import paramiko
 
 my_region = "us-east-1"
 av_zone = my_region + "a"
-print("this is my %s availablilty zone" % av_zone)
 vpc_id = "vpc-25517a5d"
 security_group_name = "web sg"
 instance_type = "t2.micro"
 key_pair_name = "artemvarlyha"
 image_id = "ami-b70554c8"
 ssh_key_path = "/home/dda/.ssh/"+ key_pair_name +".pem"
+k = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+c = paramiko.client.SSHClient()
+
+
+def wait_for_ssh_to_be_ready (timeout, retry_interval):
+    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    retry_interval = float(retry_interval)
+    timeout = int(timeout)
+    timeout_start = time.time()
+    while time.time() < timeout_start + timeout:
+        time.sleep(retry_interval)
+        try:
+            c.connect(hostname = instance.public_ip_address, username = "ec2-user", pkey = k)
+        except paramiko.ssh_exception.SSHException as e:
+            ### socket is open, but not SSH service responded ###
+            if e.message == 'Error reading SSH protocol banner':
+                print(e)
+                continue
+            print('SSH is available!')
+            break
+        except paramiko.ssh_exception.NoValidConnectionsError as e:
+            print('SSH is not ready...')
+            continue
+
 
 ec2 = boto3.resource('ec2', region_name = my_region)
 ec2_client = boto3.client('ec2',region_name = my_region)
@@ -93,7 +118,7 @@ if volume_id == "0":
      ]
   )
   volume_id = volume.id
-print("ebs volume %s is ready for your insstance" % volume_id)
+print("ebs volume %s is ready for your instance" % volume_id)
 
 ### launch ec2 instance ###
 response = ec2.create_instances(ImageId=image_id,
@@ -119,20 +144,23 @@ ec2_client.attach_volume(
 for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
    print(instance.id, instance.instance_type, instance.key_name, instance.private_ip_address, instance.public_ip_address)
 
-
+wait_for_ssh_to_be_ready('20', '3')
 ###  connect to , format the disk, mount it and perform git installation and repo clone ###
-k = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-c = paramiko.SSHClient()
-c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-print ("connecting")
-c.connect( hostname = instance.public_ip_address, username = "ec2-user", pkey = k )
-print "connected"
+#k = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+#c = paramiko.SSHClient()
+#c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+#print ("connecting")
+#c.connect( hostname = instance.public_ip_address, username = "ec2-user", pkey = k )
+print ("connected")
 commands = [ "echo '/dev/xvdl /my_volume    ext4 defaults 0  2' | sudo tee /etc/fstab",
              "sudo mkfs.ext4 /dev/xvdl",
              "sudo mkdir /my_volume",
              "sudo mount -a",
              "sudo yum update -y",
-             "sudo yum -y install git", ]
+             "sudo yum -y install git",
+             "cd /my_volume",
+             "git clone https://github.com/artemvarlyga/test.git",
+          ]
 for command in commands:
 	print "Executing {}".format( command )
 	stdin , stdout, stderr = c.exec_command(command)
