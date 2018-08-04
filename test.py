@@ -13,6 +13,7 @@ security_group_name = "web sg"
 instance_type = "t2.micro"
 key_pair_name = "artemvarlyha"
 image_id = "ami-b70554c8"
+ssh_key_path = "/home/dda/.ssh/"+ key_pair_name +".pem"
 
 ec2 = boto3.resource('ec2', region_name = my_region)
 ec2_client = boto3.client('ec2',region_name = my_region)
