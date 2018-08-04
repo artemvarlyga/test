@@ -149,22 +149,22 @@ except IndexError:
 
 if instance_id == "0": ### then instance is absent and it has to be created
 
-  response = ec2.create_instances(ImageId="%s" % image_id,
-                       InstanceType="%s" % instance_type,
+  response = ec2.create_instances(ImageId=image_id,
+                       InstanceType=instance_type,
                        MinCount=1, MaxCount=1,
                        Placement=
                          {
-                          'AvailabilityZone': 'eu-central-1a'
+                          'AvailabilityZone': av_zone
                          },
                        SecurityGroups=['web sg'],
-                       KeyName="%s" % key_pair_name,
+                       KeyName=key_pair_name,
                        )
   instance_id = response[0].instance_id
   instance = ec2.Instance(instance_id)
   instance.wait_until_running()
   ec2_client.attach_volume(
-      VolumeId="%s" % volume_id,
-      InstanceId="%s" % instance_id,
+      VolumeId=volume_id,
+      InstanceId=instance_id,
       Device='/dev/xvdl'
   )
 ### assign tags to instance ###
@@ -180,11 +180,29 @@ if instance_id == "0": ### then instance is absent and it has to be created
       ]
   )
   print("%s has been created" % instance_id)
+###  connect to , format the disk, mount it and perform git installation and repo clone ###
+  wait_for_ssh_to_be_ready('20', '3')
+  print ("connected")
+  commands = [ "echo '/dev/xvdl /my_volume    ext4 defaults 0  2' | sudo tee /etc/fstab",
+               "sudo mkfs.ext4 /dev/xvdl",
+               "sudo mkdir /my_volume",
+               "sudo mount -a",
+               "sudo yum update -y",
+               "sudo yum -y install git",
+               "sudo mkdir /my_volume/my_git",
+               "sudo git clone https://github.com/artemvarlyga/test.git /my_volume/my_git",
+             ]
+  for command in commands:
+  	print "Executing {}".format( command )
+  	stdin , stdout, stderr = c.exec_command(command)
+  	print stdout.read()
+  	print( "Errors")
+  	print stderr.read()
+  c.close()
 else:
   print("Instance web_srv seems is alredy running in your AWS account")
 
 ### retrieve dns and public IP from web_srv instanse ###
-
 response = ec2_client.describe_instances(
     Filters=[
         {
@@ -199,29 +217,6 @@ response = ec2_client.describe_instances(
 dns = response['Reservations'][0]['Instances'][0]['PublicDnsName']
 public_ip = response['Reservations'][0]['Instances'][0]['PublicIpAddress']
 
-
-
 ### get a list of running instances with additional options ###
 for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
    print(instance.id, instance.instance_type, instance.key_name, instance.private_ip_address, instance.public_ip_address)
-
-###  connect to , format the disk, mount it and perform git installation and repo clone ###
-wait_for_ssh_to_be_ready('20', '3')
-print ("connected")
-commands = [ "echo '/dev/xvdl /my_volume    ext4 defaults 0  2' | sudo tee /etc/fstab",
-             "sudo mkfs.ext4 /dev/xvdl",
-             "sudo mkdir /my_volume",
-             "sudo mount -a",
-             "sudo yum update -y",
-             "sudo yum -y install git",
-             "sudo mkdir /my_volume/my_git"
-             "sudo git clone https://github.com/artemvarlyga/test.git /my_volume/my_git",
-             "sudo python  /my_volume/my_git/test.py --run_httpd",
-          ]
-for command in commands:
-	print "Executing {}".format( command )
-	stdin , stdout, stderr = c.exec_command(command)
-	print stdout.read()
-	print( "Errors")
-	print stderr.read()
-c.close()
