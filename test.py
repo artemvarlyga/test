@@ -143,14 +143,10 @@ ec2_client.attach_volume(
 ### get a list of running instances with additional options ###
 for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
    print(instance.id, instance.instance_type, instance.key_name, instance.private_ip_address, instance.public_ip_address)
+#TODO should add the identification of my own instance between the already running ones
 
-wait_for_ssh_to_be_ready('20', '3')
 ###  connect to , format the disk, mount it and perform git installation and repo clone ###
-#k = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-#c = paramiko.SSHClient()
-#c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-#print ("connecting")
-#c.connect( hostname = instance.public_ip_address, username = "ec2-user", pkey = k )
+wait_for_ssh_to_be_ready('20', '3')
 print ("connected")
 commands = [ "echo '/dev/xvdl /my_volume    ext4 defaults 0  2' | sudo tee /etc/fstab",
              "sudo mkfs.ext4 /dev/xvdl",
@@ -158,8 +154,9 @@ commands = [ "echo '/dev/xvdl /my_volume    ext4 defaults 0  2' | sudo tee /etc/
              "sudo mount -a",
              "sudo yum update -y",
              "sudo yum -y install git",
-             "cd /my_volume",
-             "git clone https://github.com/artemvarlyga/test.git",
+             "sudo mkdir /my_volume/my_git"
+             "sudo git clone https://github.com/artemvarlyga/test.git /my_volume/my_git",
+             "sudo python  /my_volume/my_git/test.py --run_httpd",
           ]
 for command in commands:
 	print "Executing {}".format( command )
