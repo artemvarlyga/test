@@ -237,8 +237,8 @@ if not len(sys.argv) > 1:
                     "sudo yum -y install git",
                     "sudo mkdir /my_volume/my_git",
                     "sudo git clone https://github.com/artemvarlyga/test.git /my_volume/my_git",
-                    "sudo echo '* * * * * sudo /bin/bash /my_volume/my_git/sss.sh > /my_volume/my_git/index.html'",
-                    "sudo python /my_volume/my_git/test.py -r"
+                    '''sudo sh -c  "echo '* * * * * /bin/bash /my_volume/my_git/sss.sh > /my_volume/my_git/index.html' > /var/spool/cron/root"''',
+                    '''sudo -- sh -c "cd /my_volume/my_git/; python test.py -r  </dev/null &>/dev/null &"'''
                     ]
         for command in commands:
             print "Executing {}".format(command)
@@ -266,7 +266,7 @@ if not len(sys.argv) > 1:
     public_ip = response['Reservations'][0]['Instances'][0]['PublicIpAddress']
     ### get a list of running instances with additional options ###
     for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
-        print(instance.id, instance.instance_type, instance.key_name, instance.private_ip_address, instance.public_ip_address)
+        print("http://%s/index.html" % instance.public_ip_address)
 
 else:
     if args.r:
