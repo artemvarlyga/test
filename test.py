@@ -7,13 +7,13 @@ import argparse
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 
-my_region = "us-east-1"
-av_zone = my_region + "a"
-vpc_id = "vpc-25517a5d"
+my_region = "eu-west-1"
+av_zone = my_region + "c"
+vpc_id = "vpc-6440e402"
 security_group_name = "web sg"
 instance_type = "t2.micro"
 key_pair_name = "artemvarlyha"
-image_id = "ami-b70554c8"
+image_id = "ami-466768ac"
 ssh_key_path = "/home/dda/.ssh/" + key_pair_name + ".pem"
 
 key = "YWRtaW46MTE2MTg="
@@ -265,8 +265,8 @@ if not len(sys.argv) > 1:
     dns = response['Reservations'][0]['Instances'][0]['PublicDnsName']
     public_ip = response['Reservations'][0]['Instances'][0]['PublicIpAddress']
     ### get a list of running instances with additional options ###
-    for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
-        print("http://%s/index.html" % instance.public_ip_address)
+    #for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
+    print("http://%s/index.html" % instance.public_ip_address)
 
 else:
     if args.r:
