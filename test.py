@@ -1,20 +1,24 @@
 # !/usr/bin/env python
 import os
+import stat
 import sys
 import time
 import json
 import argparse
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
+from os.path import expanduser
+home = expanduser("~")
+import subprocess
 
 my_region = "eu-west-1"
 av_zone = my_region + "c"
 vpc_id = "vpc-6440e402"
 security_group_name = "web sg"
 instance_type = "t2.micro"
-key_pair_name = "artemvarlyha"
+key_pair_name = "artemvarlygakey"
 image_id = "ami-466768ac"
-ssh_key_path = "/home/dda/.ssh/" + key_pair_name + ".pem"
+ssh_key_path = home+"/.ssh/"+key_pair_name+".pem"
 
 key = "YWRtaW46MTE2MTg="
 
@@ -86,10 +90,19 @@ if not len(sys.argv) > 1:
     import paramiko
     from botocore.exceptions import ClientError
 
-    k = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-    c = paramiko.client.SSHClient()
     ec2 = boto3.resource('ec2', region_name=my_region)
     ec2_client = boto3.client('ec2', region_name=my_region)
+
+    ### create key_pair if not exists ###
+    try:
+  	outfile = open(ssh_key_path,'w')
+  	key_pair = ec2.create_key_pair(KeyName=key_pair_name)
+        print (key_pair)
+  	KeyPairOut = str(key_pair.key_material)
+  	outfile.write(KeyPairOut)
+        outfile.close()
+    except ClientError:
+  	print("key pair alredy exist")
 
     ### create security group ###
     try:
@@ -226,7 +239,19 @@ if not len(sys.argv) > 1:
             ]
         )
         print("%s has been created" % instance_id)
+        ###workaround  for paramiko issue  https://github.com/paramiko/paramiko/issues/1015
+        with open(ssh_key_path, 'r') as file:
+    		data = file.readlines()
+    		if 'BEGIN RSA PRIVATE KEY' in data[0]:
+        		data[0].replace('BEGIN RSA PRIVATE KEY', 'BEGIN PRIVATE KEY')
+    		file.close()
+	with open(ssh_key_path, 'w') as file:
+    		file.writelines( data )
+    		file.close()
+	os.chmod(ssh_key_path, stat.S_IRUSR)
         ###  connect to , format the disk, mount it and perform git installation and repo clone ###
+	k = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+    	c = paramiko.client.SSHClient()
         wait_for_ssh_to_be_ready('20', '3')
         print ("connected")
         commands = ["echo '/dev/xvdl /my_volume    ext4 defaults 0  2' | sudo tee /etc/fstab",
